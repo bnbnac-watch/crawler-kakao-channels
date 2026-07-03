@@ -2,15 +2,15 @@ import logging
 import os
 from dataclasses import asdict
 
+import aiohttp
 from aiohttp import web
-from playwright.async_api import async_playwright
 
 from crawler import KakaoChannelsCrawler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-PLAYWRIGHT_WS = os.getenv("PLAYWRIGHT_WS_ENDPOINT", "ws://watch-playwright:3000")
+WATCH_PLAYWRIGHT_URL = os.getenv("WATCH_PLAYWRIGHT_URL", "http://watch-playwright:8080")
 
 _crawler = KakaoChannelsCrawler()
 
@@ -26,16 +26,15 @@ async def crawl(request):
         if not channel_id:
             raise web.HTTPBadRequest(reason="channel_id required")
 
-        async with async_playwright() as p:
-            browser = await p.chromium.connect(PLAYWRIGHT_WS)
-            context = await browser.new_context()
-            page = await context.new_page()
-            try:
-                items = await _crawler.crawl(page, channel_id)
-                logger.info("crawl 완료: channel=%s, %d개", channel_id, len(items))
-                return web.json_response([asdict(item) for item in items])
-            finally:
-                await context.close()
+        spec = _crawler.render_request(body)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post(f"{WATCH_PLAYWRIGHT_URL}/render", json=spec) as res:
+                data = await res.json()
+                if res.status != 200:
+                    raise Exception(f"render 실패 ({res.status}): {data.get('detail', '')}")
+        items = _crawler.parse(data["html"], body)
+        logger.info("crawl 완료: channel=%s, %d개", channel_id, len(items))
+        return web.json_response([asdict(item) for item in items])
     except web.HTTPException:
         raise
     except Exception as e:
