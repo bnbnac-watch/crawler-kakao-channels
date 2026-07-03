@@ -40,7 +40,7 @@ async def crawl(request):
         raise
     except Exception as e:
         logger.error("crawl 실패: %s", e)
-        raise web.HTTPInternalServerError(reason=str(e))
+        return web.json_response({"error": str(e)}, status=500)
 
 
 app = web.Application()
