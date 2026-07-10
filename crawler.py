@@ -36,7 +36,7 @@ class KakaoChannelsCrawler(RenderCrawler):
                     if href in seen_hrefs or href == url:
                         continue
                     seen_hrefs.add(href)
-                    items.append(Item(id=href, title=text, url=href))
+                    items.append(Item(id=f"{href}::{text}", title=text, url=href))
                 except Exception:
                     continue
 
