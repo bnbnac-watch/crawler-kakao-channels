@@ -42,9 +42,32 @@ async def crawl(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def extract_images(request):
+    try:
+        body = await request.json()
+        url = body.get("url")
+        if not url:
+            raise web.HTTPBadRequest(reason="url required")
+
+        spec = _crawler.render_request_for_images(url)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post(f"{WATCH_PLAYWRIGHT_URL}/render", json=spec) as res:
+                data = await res.json()
+                if res.status != 200:
+                    raise Exception(f"render 실패 ({res.status}): {data.get('detail', '')}")
+        image_urls = _crawler.parse_images(data["html"], url)
+        return web.json_response({"image_urls": image_urls})
+    except web.HTTPException:
+        raise
+    except Exception as e:
+        logger.error("이미지 추출 실패: %s", e)
+        return web.json_response({"error": str(e)}, status=500)
+
+
 app = web.Application()
 app.router.add_get("/health", health)
 app.router.add_post("/crawl", crawl)
+app.router.add_post("/extract_images", extract_images)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=8080)
