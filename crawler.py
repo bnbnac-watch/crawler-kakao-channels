@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://pf.kakao.com"
 _ICON_MIN_SIZE = 50
+_CONTENT_IMAGE_ALT = "이미지"  # 카카오 채널이 게시글 사진에 공통으로 붙이는 alt (프로필/QR 등은 다른 alt를 씀)
 
 
 class KakaoChannelsCrawler(RenderCrawler):
@@ -63,6 +64,9 @@ class KakaoChannelsCrawler(RenderCrawler):
             seen = set()
             for img in soup.select("img"):
                 try:
+                    if img.get("alt") != _CONTENT_IMAGE_ALT:
+                        continue
+
                     src = img.get("src") or img.get("data-src")
                     if not src:
                         continue
