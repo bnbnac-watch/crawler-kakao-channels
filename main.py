@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 WATCH_PLAYWRIGHT_URL = os.getenv("WATCH_PLAYWRIGHT_URL", "http://watch-playwright:8080")
 
+# 에러 알림 폭주로 임시 차단. 원인 정리되면 False로 되돌린다.
+CRAWL_DISABLED = True
+
 _crawler = KakaoChannelsCrawler()
 
 
@@ -20,6 +23,10 @@ async def health(request):
 
 
 async def crawl(request):
+    if CRAWL_DISABLED:
+        logger.warning("crawl 비활성화 상태 - 빈 배열 반환")
+        return web.json_response([])
+
     try:
         body = await request.json()
         channel_id = body.get("channel_id")
