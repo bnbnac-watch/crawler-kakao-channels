@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -12,7 +12,10 @@ _BASE_URL = "https://pf.kakao.com"
 _POSTS_API_URL = _BASE_URL + "/rocket-web/web/profiles/{channel_id}/posts?includePinnedPost=true"
 _API_TIMEOUT_SECONDS = 10
 _ICON_MIN_SIZE = 50
-_CONTENT_IMAGE_ALT = "이미지"  # 카카오 채널이 게시글 사진에 공통으로 붙이는 alt (프로필/QR 등은 다른 alt를 씀)
+# 게시글 본문 이미지의 출처. alt는 카카오가 "이미지"에서 빈 값으로 바꾼 적이 있어(2026-10-19) 믿지 않는다.
+# 프로필 이미지는 img1.kakaocdn.net/thumb/...라 이 조건에서 자연히 빠진다.
+_CONTENT_IMAGE_HOST = "k.kakaocdn.net"
+_CONTENT_IMAGE_PATH_PREFIX = "/dn/"
 
 
 def build_item_id(href: str, text: str) -> str:
@@ -129,11 +132,12 @@ class KakaoChannelsCrawler(RenderCrawler):
             seen = set()
             for img in soup.select("img"):
                 try:
-                    if img.get("alt") != _CONTENT_IMAGE_ALT:
-                        continue
-
                     src = img.get("src") or img.get("data-src")
                     if not src:
+                        continue
+
+                    parsed = urlparse(urljoin(post_url, src))
+                    if parsed.hostname != _CONTENT_IMAGE_HOST or not parsed.path.startswith(_CONTENT_IMAGE_PATH_PREFIX):
                         continue
 
                     width = img.get("width")

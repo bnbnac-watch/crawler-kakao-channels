@@ -133,3 +133,42 @@ def test_api_item_equals_html_item_for_same_post(post_id, title, texts):
 
     assert len(html_items) == 1
     assert api_items == html_items
+
+
+# ---------------------------------------------------------------------------
+# parse_images: 게시글 상세 페이지에서 본문 이미지만 추출
+# ---------------------------------------------------------------------------
+
+_POST_URL = f"https://pf.kakao.com/{CHANNEL}/114934785"
+_PROFILE_IMG = (
+    '<img alt="프로필이미지" '
+    'src="https://img1.kakaocdn.net/thumb/C100x100.mplusfriend/?fname=https%3A%2F%2Fk.kakaocdn.net%2Fdn%2Fabc%2Fprofile.jpg">'
+)
+
+
+def _content_img(alt, token):
+    return f'<img alt="{alt}" src="https://k.kakaocdn.net/dn/{token}/img_xl.jpg">'
+
+
+# 카카오가 본문 이미지 alt를 "이미지"에서 빈 값으로 바꿨다(2026-10-19 확인) —
+# alt 값에 의존하지 않고 이미지 출처로 본문 이미지를 가려내야 한다.
+@pytest.mark.parametrize("alt", ["", "이미지"])
+def test_parse_images_returns_content_images_regardless_of_alt(alt):
+    html = f"<body>{_PROFILE_IMG}{_content_img(alt, 'a')}{_content_img(alt, 'b')}</body>"
+
+    urls = KakaoChannelsCrawler().parse_images(html, _POST_URL)
+
+    assert urls == [
+        "https://k.kakaocdn.net/dn/a/img_xl.jpg",
+        "https://k.kakaocdn.net/dn/b/img_xl.jpg",
+    ]
+
+
+def test_parse_images_excludes_profile_image():
+    assert KakaoChannelsCrawler().parse_images(f"<body>{_PROFILE_IMG}</body>", _POST_URL) == []
+
+
+def test_parse_images_dedupes_same_url():
+    html = f"<body>{_content_img('', 'a')}{_content_img('', 'a')}</body>"
+
+    assert KakaoChannelsCrawler().parse_images(html, _POST_URL) == ["https://k.kakaocdn.net/dn/a/img_xl.jpg"]
